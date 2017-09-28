@@ -1,0 +1,138 @@
+<html>
+<head>
+    <meta http-equiv="Access-Control-Allow-Origin" content="*">
+</head>
+<style>
+  #map {
+    height: 400px;
+    width: 100%;
+  }
+</style>
+
+<script src="https://www.gstatic.com/firebasejs/4.3.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/4.3.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/4.3.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/4.3.1/firebase-messaging.js"></script>
+
+<script>
+
+/* Global Map variables. */
+var marker = null;
+var map = null;
+
+/* Fill below parameters from Firebase Console. */
+var config = {
+  apiKey: "FIREBASE_API_KEY",
+  authDomain: "FIREBASE_AUTH_DOMAIN",
+  databaseURL: "FIREBASE_DB_URL",
+  projectId: "FIREBASE_PROJECT",
+  storageBucket: "FIREBASE_STORAGE",
+  messagingSenderId: "FIREBASE_MESSAGING_ID"
+};
+
+/* Email authenticated access for Firebase. */
+var userConfig = {
+  username: "USER_NAME",
+  email: "USER_EMAIL",
+  password: "USER_PASS"
+};
+
+var app = firebase.initializeApp(config);
+
+/* Login to Firebase with email and pass. */
+firebase.auth(app).signInWithEmailAndPassword(userConfig.email, userConfig.password).catch(function(error) {
+  var errorCode = error.code;
+  var errorMessage = error.message;
+  console.log("Error : " + errorCode + ". " + errorMessage);
+});
+
+var database = firebase.database(app);
+
+/* Data schema to be written into Firebase Realtime DB. */
+var userData = {
+  user: userConfig.email,
+  locationlat: "0",
+  locationlng: "0",
+};
+
+function writeUserData(user, lat, lng)
+{
+  database.ref("user/" + userConfig.username).set({
+    user: user,
+    locationlat: lat,
+    locationlng: lng
+  });
+}
+
+function readUserData()
+{
+  var userId = firebase.auth(app).currentUser.uid;
+  return firebase.database().ref("user/" + userConfig.username).once("value").then(function(snapshot) {
+    var username = (snapshot.val() && snapshot.val().user);
+    userData.locationlat = (snapshot.val() && snapshot.val().locationlat);
+    userData.locationlng = (snapshot.val() && snapshot.val().locationlng);
+    console.log("Read val : " + userData.locationlat + "," + userData.locationlng);
+  });
+}
+
+/* Using Geolocation API for location tracking. */
+function getLocation() {
+  var error = null;
+  if (navigator.geolocation)
+  {
+    navigator.geolocation.getCurrentPosition(setPosition);
+  }
+  else
+  {
+    console.log("Geolocation is not supported by this browser.");
+  }
+}
+
+function setPosition(position)
+{
+  console.log("Latitude: " + position.coords.latitude + 
+    ",Longitude: " + position.coords.longitude);
+  userData.locationlat = position.coords.latitude;
+  userData.locationlng = position.coords.longitude
+}
+
+/* Draw map canvas. */
+function initMap() {
+  map = new google.maps.Map(document.getElementById('map'), {
+    zoom: 8
+  });
+}
+
+/* Set user movements on map. */
+function setMarker()
+{
+  var curPos = {lat: userData.locationlat, lng: userData.locationlng};
+  marker = new google.maps.Marker({
+    position: curPos,
+    map: map
+  });
+  map.setCenter(curPos);
+}
+
+/* Will track location and perform RW DB operations. */
+function performLoop()
+{
+  getLocation();
+  writeUserData(userData.user, userData.locationlat, userData.locationlng);
+  /* Experimental read and write. */
+  readUserData();
+  setMarker();
+}
+
+var locationInterval = setInterval(performLoop, 3000);
+
+</script>
+
+<body onload="initMap()">
+<h3>Location track</h3>
+<div id="map"></div>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_MAP_API_KEY&callback=initMap">
+</script>
+</body>
+
+</html>
